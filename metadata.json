@@ -2,5 +2,6 @@
   "owner": "hadolint",
   "name": "hadolint-action",
   "visibility": "internal",
-  "description": "GitHub action for Hadolint, A  Dockerfile linting tool"
+  "description": "GitHub action for Hadolint, A  Dockerfile linting tool",
+  "block_publish": false
 }
