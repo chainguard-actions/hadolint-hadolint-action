@@ -1,6 +1,6 @@
 # hadolint/hadolint-action
 
-GitHub action for Hadolint, A  Dockerfile linting tool
+Action that runs Hadolint Dockerfile linting tool
 
 Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/hadolint/hadolint-action](https://github.com/hadolint/hadolint-action).
 
