@@ -1,0 +1,28 @@
+name: Test failure threshold
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          # Dockerfile.info has info-level violations (DL3059: multiple RUN commands)
+          # Setting failure-threshold to 'warning' means info violations won't fail
+          dockerfile: tests/fixtures/Dockerfile.info
+          failure-threshold: 'warning'
+      - name: Assert action passed with info violations below threshold
+        run: |
+          echo "PASS: action completed without failing (info violations below warning threshold)"
+      - name: Assert results contain info violations
+        env:
+          RESULTS: ${{ steps.action.outputs.results }}
+        run: |
+          echo "results: $RESULTS"
+          if [ -z "$RESULTS" ]; then
+            echo "FAIL: expected info-level lint violations in results but got empty output"
+            exit 1
+          fi
+          echo "PASS: info-level violations reported as expected"

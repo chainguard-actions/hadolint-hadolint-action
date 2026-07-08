@@ -1,0 +1,29 @@
+name: Test JSON output format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          dockerfile: tests/fixtures/Dockerfile.clean
+          format: 'json'
+          no-fail: 'true'
+      - name: Assert action completed with JSON format
+        run: |
+          echo "PASS: action completed with json format"
+      - name: Assert results are empty for clean Dockerfile
+        env:
+          RESULTS: ${{ steps.action.outputs.results }}
+        run: |
+          echo "results: $RESULTS"
+          NORM="$(echo "$RESULTS" | tr -d '[:space:]')"
+          # JSON format for no violations is typically "[]" or empty
+          if [ -n "$NORM" ] && [ "$NORM" != "[]" ] && [ "$NORM" != "{}" ] && [ "$NORM" != "null" ]; then
+            echo "FAIL: expected empty/no violations in JSON output but got: $RESULTS"
+            exit 1
+          fi
+          echo "PASS: no violations in JSON output as expected"

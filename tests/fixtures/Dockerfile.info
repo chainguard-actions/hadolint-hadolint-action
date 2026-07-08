@@ -1,0 +1,4 @@
+FROM debian:bookworm-slim
+
+RUN echo "Hello"
+RUN echo "World"

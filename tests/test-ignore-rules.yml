@@ -1,0 +1,20 @@
+name: Test ignore rules
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          # Dockerfile.warning triggers DL3008 (apt-get without version pinning)
+          # and DL3009 (delete apt-get lists) and DL3015 (avoid additional packages)
+          # We ignore those rules so the action should pass
+          dockerfile: tests/fixtures/Dockerfile.warning
+          ignore: 'DL3008,DL3009,DL3015,DL3014'
+          failure-threshold: 'info'
+      - name: Assert action passed with ignored rules
+        run: |
+          echo "PASS: action completed without failing when rules are ignored"

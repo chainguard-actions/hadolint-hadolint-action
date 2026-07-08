@@ -1,0 +1,25 @@
+name: Test basic usage - clean Dockerfile
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          dockerfile: tests/fixtures/Dockerfile.clean
+          no-fail: 'false'
+          failure-threshold: 'info'
+      - name: Assert no lint violations
+        env:
+          RESULTS: ${{ steps.action.outputs.results }}
+        run: |
+          echo "results: $RESULTS"
+          NORM="$(echo "$RESULTS" | tr -d '[:space:]')"
+          if [ -n "$NORM" ]; then
+            echo "FAIL: expected no lint violations but got: $RESULTS"
+            exit 1
+          fi
+          echo "PASS: no lint violations as expected"

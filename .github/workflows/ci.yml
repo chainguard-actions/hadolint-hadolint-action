@@ -1,0 +1,118 @@
+name: "CI"
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions: {}
+
+env:
+  TEST_IMAGE_NAME: hadolint-action:${{github.sha}}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: read
+    container: pipelinecomponents/hadolint:0.10.1
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+      - name: Run hadolint
+        run: hadolint Dockerfile
+
+  build-test:
+    name: Build and Test
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: read
+    needs: ["lint"]
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+      - name: Build Docker image
+        run: docker build -t $TEST_IMAGE_NAME .
+
+      - name: Run Structure tests
+        uses: brpaz/structure-tests-action@814df1d626990796d73100ef248792a7d03260ea # v1.1.2
+        with:
+          image: ${{ env.TEST_IMAGE_NAME }}
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: read
+    needs: build-test
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Run integration test 1
+        uses: ./
+        with:
+          dockerfile: testdata/Dockerfile
+
+      - name: Run integration test 2 - ignore a rule
+        # This step is supposed to print out an info level rule violation
+        # but completely ignore the two rules listed below
+        uses: ./
+        with:
+          dockerfile: testdata/warning.Dockerfile
+          ignore: 'DL3014,DL3008'
+          no-fail: true
+
+      - name: Run integration test 3 - set failure threshold
+        # This step will print out an info level rule violation, but not fail
+        # because of the high failure threshold.
+        uses: ./
+        with:
+          dockerfile: testdata/info.Dockerfile
+          failure-threshold: warning
+
+      - name: Run integration test 4 - output format
+        # This step will never fail, but will print out rule violations as json.
+        uses: ./
+        with:
+          dockerfile: testdata/warning.Dockerfile
+          failure-threshold: error
+          format: json
+
+      - name: Run integration test 5 - output format
+        # This step will never fail, but will print out rule violations.
+        id: hadolint5
+        uses: ./
+        with:
+          dockerfile: testdata/warning.Dockerfile
+          config: testdata/hadolint.yaml
+
+      - name: Run integration test 6 - verify results output parameter
+        # This step will never fail, but will print out the results from step5
+        env:
+          HADOLINT5_RESULTS: ${{ steps.hadolint5.outputs.results }}
+        run: echo "$HADOLINT5_RESULTS"
+
+      #- name: Run integration test 6 - output to file
+      #  # This step will never fail, but will print out rule violations.
+      #  uses: ./
+      #  with:
+      #    dockerfile: testdata/warning.Dockerfile
+      #    format: sarif
+      #    output-file: report.sarif
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    name: Release
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
+      - uses: cycjimmy/semantic-release-action@8e58d20d0f6c8773181f43eb74d6a05e3099571d # v3
+        with:
+          extra_plugins: |
+            @semantic-release/git
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}

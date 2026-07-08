@@ -1,0 +1,28 @@
+name: Test custom config file
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          # Dockerfile.warning has warning-level violations, but config sets
+          # failure-threshold: error so the action should not fail
+          dockerfile: tests/fixtures/Dockerfile.warning
+          config: tests/fixtures/hadolint-config.yaml
+      - name: Assert action passed using custom config
+        run: |
+          echo "PASS: action completed without failing using custom config with failure-threshold=error"
+      - name: Assert results contain violations
+        env:
+          RESULTS: ${{ steps.action.outputs.results }}
+        run: |
+          echo "results: $RESULTS"
+          if [ -z "$RESULTS" ]; then
+            echo "FAIL: expected lint violations in results but got empty output"
+            exit 1
+          fi
+          echo "PASS: lint violations reported as expected"
