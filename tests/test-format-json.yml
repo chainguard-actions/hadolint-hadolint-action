@@ -1,0 +1,33 @@
+name: Test JSON format output
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          dockerfile: tests/fixtures/Dockerfile.invalid
+          format: 'json'
+          no-fail: 'true'
+
+      - name: Assert output is JSON format
+        env:
+          ACTUAL: ${{ steps.action.outputs.results }}
+        run: |
+          echo "actual: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected JSON results but got empty output"
+            exit 1
+          fi
+          # JSON output should start with '[' (array of findings)
+          TRIMMED="$(echo "$ACTUAL" | tr -d '[:space:]')"
+          if echo "$TRIMMED" | grep -q '^\['; then
+            echo "PASS: output is JSON array format"
+          else
+            echo "FAIL: expected JSON array output, got: $ACTUAL"
+            exit 1
+          fi

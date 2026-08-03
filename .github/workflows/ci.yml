@@ -1,0 +1,141 @@
+name: "CI"
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+
+env:
+  TEST_IMAGE_NAME: hadolint-action:${{github.sha}}
+
+permissions:
+  contents: write
+  issues: write  # Used by Release step to update "The automated release is failing" issue
+  pull-requests: write  # Used by ShellCheck Action to add comments on PR
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    container: pipelinecomponents/hadolint:0.27.2
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run hadolint
+        run: hadolint Dockerfile
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run ShellCheck
+        uses: reviewdog/action-shellcheck@v1.31.0
+        with:
+          reporter: github-pr-review
+          fail_on_error: true
+
+  build-test:
+    name: Build and Test
+    runs-on: ubuntu-24.04
+    needs:
+      - lint
+      - shellcheck
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build Docker image
+        run: docker build -t $TEST_IMAGE_NAME .
+
+      - name: Run Structure tests
+        uses: brpaz/structure-tests-action@v1.1.2
+        with:
+          image: ${{ env.TEST_IMAGE_NAME }}
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-24.04
+    needs:
+      - build-test
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run integration test 1
+        uses: ./
+        with:
+          dockerfile: testdata/Dockerfile
+
+      - name: Run integration test 2 - ignore a rule
+        # This step is supposed to print out an info level rule violation
+        # but completely ignore the two rules listed below
+        uses: ./
+        with:
+          dockerfile: testdata/warning.Dockerfile
+          ignore: 'DL3014,DL3008'
+          no-fail: true
+
+      - name: Run integration test 3 - set failure threshold
+        # This step will print out an info level rule violation, but not fail
+        # because of the high failure threshold.
+        uses: ./
+        with:
+          dockerfile: testdata/info.Dockerfile
+          failure-threshold: warning
+
+      - name: Run integration test 4 - output format
+        # This step will never fail, but will print out rule violations as json.
+        uses: ./
+        with:
+          dockerfile: testdata/warning.Dockerfile
+          failure-threshold: error
+          format: json
+
+      - name: Run integration test 5 - config file
+        # This step will never fail, but will print out rule violations
+        # because in config is set the error failure threshold.
+        id: hadolint5
+        uses: ./
+        with:
+          dockerfile: testdata/warning.Dockerfile
+          config: testdata/hadolint.yaml
+
+      - name: Run integration test 6 - verify results output parameter
+        # This step will never fail, but will print out the results from step5
+        env:
+          results: ${{ steps.hadolint5.outputs.results }}
+        run: echo "$results"
+
+      - name: Run integration test 7 - set recursive
+        # This step will never fail, but will print out rule violations
+        # for all the Dockerfiles in repository.
+        uses: ./
+        with:
+          dockerfile: "*Dockerfile"
+          failure-threshold: error
+          recursive: true
+
+      #- name: Run integration test 8 - output to file
+      #  # This step will never fail, but will print out rule violations.
+      #  uses: ./
+      #  with:
+      #    dockerfile: testdata/warning.Dockerfile
+      #    format: sarif
+      #    output-file: report.sarif
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    name: Release
+    runs-on: ubuntu-24.04
+    needs:
+      - integration-tests
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: cycjimmy/semantic-release-action@v5
+        with:
+          extra_plugins: |
+            @semantic-release/git
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}

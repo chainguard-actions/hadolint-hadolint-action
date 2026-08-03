@@ -1,0 +1,30 @@
+name: Test ignore rules - specific rules should be ignored
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          dockerfile: tests/fixtures/Dockerfile.invalid
+          # DL3008: Pin versions in apt get install
+          # DL3009: Delete the apt-get lists after installing something
+          # DL3015: Avoid additional packages by specifying `--no-install-recommends`
+          ignore: 'DL3008,DL3009,DL3015'
+          no-fail: 'true'
+
+      - name: Assert results show ignored rules are not reported
+        env:
+          ACTUAL: ${{ steps.action.outputs.results }}
+        run: |
+          echo "actual: $ACTUAL"
+          # DL3008 should not appear in results since it's ignored
+          if echo "$ACTUAL" | grep -q 'DL3008'; then
+            echo "FAIL: DL3008 should have been ignored but appeared in results"
+            exit 1
+          fi
+          echo "PASS: ignored rules are not present in results"

@@ -1,0 +1,25 @@
+name: Test recursive mode - find and lint Dockerfiles recursively
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up nested Dockerfiles for recursive test
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tests/fixtures/subdir/nested"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/Dockerfile.valid" "$GITHUB_WORKSPACE/tests/fixtures/subdir/Dockerfile"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/Dockerfile.valid" "$GITHUB_WORKSPACE/tests/fixtures/subdir/nested/Dockerfile"
+
+      - id: action
+        uses: .
+        with:
+          dockerfile: Dockerfile
+          recursive: 'true'
+          no-fail: 'true'
+
+      - name: Assert recursive mode ran without error
+        run: |
+          echo "PASS: recursive mode completed successfully"

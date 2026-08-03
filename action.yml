@@ -1,0 +1,100 @@
+name: 'Hadolint Action'
+description: 'Action that runs Hadolint Dockerfile linting tool'
+author: 'Bruno Paz'
+inputs:
+  dockerfile:
+    required: false
+    description: 'The path to the Dockerfile to lint'
+    default: 'Dockerfile'
+  config:
+    required: false
+    description: 'Path to a config file'
+    default:
+  recursive:
+    required: false
+    description:
+      'Search for specified dockerfile recursively, from the project root'
+    default: 'false'
+  output-file:
+    required: false
+    description: 'The path where to save the linting results to'
+    default: "/dev/stdout"
+
+  # standart hadolint options:
+  no-color:
+    required: false
+    description: Don't create colored output.
+    default: 'false'
+  no-fail:
+    required: false
+    description: Never exit with a failure status code
+    default: 'false'
+  verbose:
+    required: false
+    description: Print more information about the running config
+    default: 'false'
+  format:
+    required: false
+    description: |
+      The output format, one of [tty (default) | json | checkstyle |
+      codeclimate | gitlab_codeclimate | codacy | sarif]
+    default: 'tty'
+  failure-threshold:
+    required: false
+    description: |
+      Fail the pipeline only if rules with severity above this threshold are
+      violated. One of [error | warning | info (default) | style | ignore]
+    default: 'info'
+  override-error:
+    required: false
+    description:
+      'A comma separated list of rules whose severity will be `error`'
+    default:
+  override-warning:
+    required: false
+    description:
+      'A comma separated list of rules whose severity will be `warning`'
+    default:
+  override-info:
+    required: false
+    description:
+      'A comma separated list of rules whose severity will be `info`'
+    default:
+  override-style:
+    required: false
+    description:
+      'A comma separated list of rules whose severity will be `style`'
+    default:
+  ignore:
+    required: false
+    description: 'A comma separated string of rules to ignore'
+    default:
+  trusted-registries:
+    required: false
+    description: 'A comma separated list of trusted registry urls'
+    default:
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.dockerfile }}
+  env:
+    NO_COLOR: ${{ inputs.no-color }}
+    HADOLINT_NOFAIL: ${{ inputs.no-fail }}
+    HADOLINT_VERBOSE: ${{ inputs.verbose }}
+    HADOLINT_FORMAT: ${{ inputs.format }}
+    HADOLINT_FAILURE_THRESHOLD: ${{ inputs.failure-threshold }}
+    HADOLINT_OVERRIDE_ERROR: ${{ inputs.override-error }}
+    HADOLINT_OVERRIDE_WARNING: ${{ inputs.override-warning }}
+    HADOLINT_OVERRIDE_INFO: ${{ inputs.override-info }}
+    HADOLINT_OVERRIDE_STYLE: ${{ inputs.override-style }}
+    HADOLINT_IGNORE: ${{ inputs.ignore }}
+    HADOLINT_TRUSTED_REGISTRIES: ${{ inputs.trusted-registries }}
+
+    HADOLINT_CONFIG: ${{ inputs.config }}
+    HADOLINT_RECURSIVE: ${{ inputs.recursive }}
+    HADOLINT_OUTPUT: ${{ inputs.output-file }}
+branding:
+  icon: 'layers'
+  color: 'purple'

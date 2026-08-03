@@ -1,0 +1,19 @@
+name: Test config file - use hadolint config to set failure threshold
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          dockerfile: tests/fixtures/Dockerfile.invalid
+          # Config sets failure-threshold: error, so warnings won't fail the pipeline
+          config: tests/fixtures/hadolint-config.yaml
+
+      - name: Assert action passed using config file (threshold set to error)
+        run: |
+          echo "PASS: action completed using config file with error threshold"
