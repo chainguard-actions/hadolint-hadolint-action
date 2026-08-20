@@ -1,0 +1,36 @@
+name: Test JSON format output
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a Dockerfile with known issues
+        run: |
+          cat > "$GITHUB_WORKSPACE/Dockerfile.test-json" << 'EOF'
+          FROM ubuntu:latest
+          RUN apt-get update
+          RUN apt-get install -y curl
+          EOF
+      - id: action
+        uses: .
+        with:
+          dockerfile: Dockerfile.test-json
+          format: 'json'
+          no-fail: 'true'
+      - name: Assert results output is JSON
+        env:
+          RESULTS: ${{ steps.action.outputs.results }}
+        run: |
+          echo "results: $RESULTS"
+          if [ -z "$RESULTS" ]; then
+            echo "FAIL: expected JSON results but got empty output"
+            exit 1
+          fi
+          # Validate it's valid JSON
+          if ! echo "$RESULTS" | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
+            echo "FAIL: results is not valid JSON: $RESULTS"
+            exit 1
+          fi
+          echo "PASS: results is valid JSON"

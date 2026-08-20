@@ -18,26 +18,31 @@ trap cleanup EXIT
 
 echo "::add-matcher::$HOME/problem-matcher.json"
 
+# Build the base command as an array to avoid eval with user-controlled input
+CMD=(hadolint)
+
 if [ -n "$HADOLINT_CONFIG" ]; then
-  HADOLINT_CONFIG="-c ${HADOLINT_CONFIG}"
+  CMD+=(-c "$HADOLINT_CONFIG")
 fi
 
 if [ -z "$HADOLINT_TRUSTED_REGISTRIES" ]; then
   unset HADOLINT_TRUSTED_REGISTRIES
 fi
 
-COMMAND="hadolint $HADOLINT_CONFIG"
-
 if [ "$HADOLINT_RECURSIVE" = "true" ]; then
   shopt -s globstar
 
   filename="${!#}"
-  flags="${*:1:$#-1}"
+  # Collect all flags (positional args except the last one) into an array
+  flags=()
+  for ((i = 1; i < $#; i++)); do
+    flags+=("${!i}")
+  done
 
-  RESULTS=$(eval "$COMMAND $flags" -- **/"$filename")
+  # shellcheck disable=SC2206
+  RESULTS=$("${CMD[@]}" "${flags[@]}" -- **/"$filename")
 else
-  flags=$*
-  RESULTS=$(eval "$COMMAND" "$flags")
+  RESULTS=$("${CMD[@]}" "$@")
 fi
 FAILED=$?
 
@@ -50,15 +55,17 @@ fi
 
 RESULTS="${RESULTS//$'\\n'/''}"
 
+SAFE_RESULTS="$(printf '%s' "$RESULTS" | tr -d '\n\r')"
+
 {
   echo "results<<EOF"
-  echo "$RESULTS"
+  echo "$SAFE_RESULTS"
   echo "EOF"
 } >>"$GITHUB_OUTPUT"
 
 {
   echo "HADOLINT_RESULTS<<EOF"
-  echo "$RESULTS"
+  echo "$SAFE_RESULTS"
   echo "EOF"
 } >>"$GITHUB_ENV"
 

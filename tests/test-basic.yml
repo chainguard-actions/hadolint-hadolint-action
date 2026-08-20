@@ -1,0 +1,29 @@
+name: Test basic usage - valid Dockerfile
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a valid Dockerfile
+        run: |
+          cat > /tmp/Dockerfile.valid << 'EOF'
+          FROM ubuntu:22.04
+          RUN apt-get update && apt-get install -y --no-install-recommends curl \
+              && rm -rf /var/lib/apt/lists/*
+          WORKDIR /app
+          COPY . .
+          CMD ["bash"]
+          EOF
+          cp /tmp/Dockerfile.valid "$GITHUB_WORKSPACE/Dockerfile.test-valid"
+      - id: action
+        uses: .
+        with:
+          dockerfile: Dockerfile.test-valid
+          no-fail: 'false'
+          failure-threshold: 'error'
+      - name: Assert action succeeded
+        run: |
+          echo "Action completed successfully"
+          echo "PASS: valid Dockerfile linted without errors"

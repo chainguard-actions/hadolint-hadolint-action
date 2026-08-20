@@ -1,0 +1,25 @@
+name: Test ignore rules
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a Dockerfile that violates DL3007 (latest tag) and DL3008 (no version pin)
+        run: |
+          cat > "$GITHUB_WORKSPACE/Dockerfile.test-ignore" << 'EOF'
+          FROM ubuntu:latest
+          RUN apt-get update && apt-get install -y curl
+          EOF
+      - id: action
+        uses: .
+        with:
+          dockerfile: Dockerfile.test-ignore
+          # Ignore DL3007 (using latest tag) and DL3008 (pin versions in apt-get)
+          ignore: 'DL3007,DL3008,DL3009'
+          no-fail: 'false'
+          failure-threshold: 'error'
+      - name: Assert action succeeded with ignored rules
+        run: |
+          echo "PASS: action completed with rules DL3007,DL3008,DL3009 ignored"

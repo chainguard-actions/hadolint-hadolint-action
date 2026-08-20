@@ -1,0 +1,24 @@
+name: Test failure-threshold - only fail on errors
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a Dockerfile with warnings but no errors
+        run: |
+          cat > "$GITHUB_WORKSPACE/Dockerfile.test-threshold" << 'EOF'
+          FROM ubuntu:latest
+          RUN apt-get update && apt-get install -y curl
+          EOF
+      - id: action
+        uses: .
+        with:
+          dockerfile: Dockerfile.test-threshold
+          # Only fail on 'error' severity, not warnings/info/style
+          failure-threshold: 'error'
+          no-fail: 'false'
+      - name: Assert action succeeded (warnings below error threshold)
+        run: |
+          echo "PASS: action completed - warnings did not exceed error threshold"

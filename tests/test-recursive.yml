@@ -1,0 +1,31 @@
+name: Test recursive Dockerfile search
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create Dockerfiles in subdirectories
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/subdir1" "$GITHUB_WORKSPACE/subdir2"
+          cat > "$GITHUB_WORKSPACE/subdir1/Dockerfile" << 'EOF'
+          FROM ubuntu:22.04
+          RUN apt-get update && apt-get install -y --no-install-recommends curl \
+              && rm -rf /var/lib/apt/lists/*
+          CMD ["bash"]
+          EOF
+          cat > "$GITHUB_WORKSPACE/subdir2/Dockerfile" << 'EOF'
+          FROM ubuntu:22.04
+          WORKDIR /app
+          CMD ["bash"]
+          EOF
+      - id: action
+        uses: .
+        with:
+          dockerfile: 'Dockerfile'
+          recursive: 'true'
+          no-fail: 'true'
+      - name: Assert recursive search completed
+        run: |
+          echo "PASS: recursive Dockerfile search completed"

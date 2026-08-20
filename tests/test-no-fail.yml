@@ -1,0 +1,26 @@
+name: Test no-fail mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a Dockerfile with known issues
+        run: |
+          cat > "$GITHUB_WORKSPACE/Dockerfile.test-issues" << 'EOF'
+          FROM ubuntu:latest
+          RUN apt-get update
+          RUN apt-get install -y curl
+          EOF
+      - id: action
+        uses: .
+        with:
+          dockerfile: Dockerfile.test-issues
+          no-fail: 'true'
+      - name: Assert action did not fail despite issues
+        env:
+          RESULTS: ${{ steps.action.outputs.results }}
+        run: |
+          echo "results: $RESULTS"
+          echo "PASS: action completed without failure (no-fail=true)"
