@@ -11,6 +11,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v3.1.0 | [`v3.1.0`](https://github.com/chainguard-actions/hadolint-hadolint-action/tree/v3.1.0) | [`54c9adb`](https://github.com/hadolint/hadolint-action/commit/54c9adbab1582c2ef04b2016b760714a4bfde3cf) |
 | v3.3.0 | [`v3.3.0`](https://github.com/chainguard-actions/hadolint-hadolint-action/tree/v3.3.0) | [`2332a7b`](https://github.com/hadolint/hadolint-action/commit/2332a7b74a6de0dda2e2221d575162eba76ba5e5) |
 | v3.4.0 | [`v3.4.0`](https://github.com/chainguard-actions/hadolint-hadolint-action/tree/v3.4.0) | [`2a66e89`](https://github.com/hadolint/hadolint-action/commit/2a66e89f53d0771bb131a7fa31f3136336094aa6) |
+| v3.5.0 | [`v3.5.0`](https://github.com/chainguard-actions/hadolint-hadolint-action/tree/v3.5.0) | [`06be81b`](https://github.com/hadolint/hadolint-action/commit/06be81baf89a55ffd0e24b8f04a4185738dd3387) |
 
 ## Privacy
 
