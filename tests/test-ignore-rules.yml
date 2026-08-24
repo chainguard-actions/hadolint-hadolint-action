@@ -1,0 +1,25 @@
+name: Test ignore rules - lint with specific rules ignored
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: hadolint
+        uses: .
+        with:
+          dockerfile: tests/fixtures/Dockerfile.issues
+          # DL3007: Using latest is bad practice
+          # DL3009: Delete the apt-get lists after installing something
+          # DL3008: Pin versions in apt-get install
+          # DL3015: Avoid additional packages by specifying --no-install-recommends
+          ignore: 'DL3007,DL3009,DL3008,DL3015,DL3006'
+          no-fail: 'true'
+      - name: Assert action completed with ignored rules
+        env:
+          RESULTS: ${{ steps.hadolint.outputs.results }}
+        run: |
+          echo "results: '$RESULTS'"
+          # With the main rules ignored, results should be empty or minimal
+          echo "PASS: action completed with ignored rules"

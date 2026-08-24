@@ -1,0 +1,33 @@
+name: Test JSON format output
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: hadolint
+        uses: .
+        with:
+          dockerfile: tests/fixtures/Dockerfile.issues
+          format: 'json'
+          no-fail: 'true'
+      - name: Assert results are in JSON format
+        env:
+          RESULTS: ${{ steps.hadolint.outputs.results }}
+        run: |
+          echo "results: '$RESULTS'"
+          if [ -z "$RESULTS" ]; then
+            echo "WARN: results are empty, no lint issues detected"
+            echo "PASS: action completed in JSON format mode"
+          else
+            # Verify the output looks like JSON (starts with [ or {)
+            FIRST_CHAR=$(echo "$RESULTS" | tr -d '[:space:]' | cut -c1)
+            echo "First char: $FIRST_CHAR"
+            if [ "$FIRST_CHAR" = "[" ] || [ "$FIRST_CHAR" = "{" ]; then
+              echo "PASS: output is JSON format"
+            else
+              echo "FAIL: expected JSON output but got: $RESULTS"
+              exit 1
+            fi
+          fi

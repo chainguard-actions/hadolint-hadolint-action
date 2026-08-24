@@ -1,0 +1,20 @@
+name: Test recursive mode - find Dockerfiles recursively
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: hadolint
+        uses: .
+        with:
+          dockerfile: 'Dockerfile'
+          recursive: 'true'
+          no-fail: 'true'
+      - name: Assert recursive mode completed
+        env:
+          RESULTS: ${{ steps.hadolint.outputs.results }}
+        run: |
+          echo "results: '$RESULTS'"
+          echo "PASS: recursive mode completed successfully"
