@@ -18,26 +18,31 @@ trap cleanup EXIT
 
 echo "::add-matcher::$HOME/problem-matcher.json"
 
+COMMAND=(hadolint)
 if [ -n "$HADOLINT_CONFIG" ]; then
-  HADOLINT_CONFIG="-c ${HADOLINT_CONFIG}"
+  COMMAND+=(-c "$HADOLINT_CONFIG")
 fi
 
 if [ -z "$HADOLINT_TRUSTED_REGISTRIES" ]; then
   unset HADOLINT_TRUSTED_REGISTRIES
 fi
 
-COMMAND="hadolint $HADOLINT_CONFIG"
-
 if [ "$HADOLINT_RECURSIVE" = "true" ]; then
   shopt -s globstar
 
   filename="${!#}"
-  flags="${*:1:$#-1}"
+  flags=("${@:1:$#-1}")
 
-  RESULTS=$(eval "$COMMAND $flags" -- **/"$filename")
+  RESULTS=$("${COMMAND[@]}" "${flags[@]}" -- **/"$filename")
 else
-  flags=$*
-  RESULTS=$(eval "$COMMAND" "$flags")
+  # Word-split and glob each argument (as the former eval did) without
+  # evaluating any shell syntax contained in the values.
+  flags=()
+  for arg in "$@"; do
+    # shellcheck disable=SC2206
+    flags+=($arg)
+  done
+  RESULTS=$("${COMMAND[@]}" "${flags[@]}")
 fi
 FAILED=$?
 
@@ -50,16 +55,18 @@ fi
 
 RESULTS="${RESULTS//$'\\n'/''}"
 
+EOF="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+
 {
-  echo "results<<EOF"
+  echo "results<<$EOF"
   echo "$RESULTS"
-  echo "EOF"
+  echo "$EOF"
 } >>"$GITHUB_OUTPUT"
 
 {
-  echo "HADOLINT_RESULTS<<EOF"
+  echo "HADOLINT_RESULTS<<$EOF"
   echo "$RESULTS"
-  echo "EOF"
+  echo "$EOF"
 } >>"$GITHUB_ENV"
 
 [ -z "$HADOLINT_OUTPUT" ] || echo "Hadolint output saved to: $HADOLINT_OUTPUT"
