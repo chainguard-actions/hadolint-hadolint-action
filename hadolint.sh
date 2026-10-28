@@ -18,9 +18,8 @@ trap cleanup EXIT
 
 echo "::add-matcher::$HOME/problem-matcher.json"
 
-# Build the base command as an array to avoid eval with user-controlled input
+# Build the command as an array instead of using eval on user-controlled input
 CMD=(hadolint)
-
 if [ -n "$HADOLINT_CONFIG" ]; then
   CMD+=(-c "$HADOLINT_CONFIG")
 fi
@@ -33,16 +32,16 @@ if [ "$HADOLINT_RECURSIVE" = "true" ]; then
   shopt -s globstar
 
   filename="${!#}"
-  # Collect all flags (positional args except the last one) into an array
-  flags=()
-  for ((i = 1; i < $#; i++)); do
-    flags+=("${!i}")
-  done
-
+  # Unquoted expansion word-splits (and globs) like upstream's eval did,
+  # but never evaluates the content as shell code.
   # shellcheck disable=SC2206
+  flags=(${*:1:$#-1})
+
   RESULTS=$("${CMD[@]}" "${flags[@]}" -- **/"$filename")
 else
-  RESULTS=$("${CMD[@]}" "$@")
+  # shellcheck disable=SC2206
+  flags=($*)
+  RESULTS=$("${CMD[@]}" "${flags[@]}")
 fi
 FAILED=$?
 
@@ -55,18 +54,18 @@ fi
 
 RESULTS="${RESULTS//$'\\n'/''}"
 
-SAFE_RESULTS="$(printf '%s' "$RESULTS" | tr -d '\n\r')"
+EOF_DELIM="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 
 {
-  echo "results<<EOF"
-  echo "$SAFE_RESULTS"
-  echo "EOF"
+  echo "results<<$EOF_DELIM"
+  echo "$RESULTS"
+  echo "$EOF_DELIM"
 } >>"$GITHUB_OUTPUT"
 
 {
-  echo "HADOLINT_RESULTS<<EOF"
-  echo "$SAFE_RESULTS"
-  echo "EOF"
+  echo "HADOLINT_RESULTS<<$EOF_DELIM"
+  echo "$RESULTS"
+  echo "$EOF_DELIM"
 } >>"$GITHUB_ENV"
 
 [ -z "$HADOLINT_OUTPUT" ] || echo "Hadolint output saved to: $HADOLINT_OUTPUT"

